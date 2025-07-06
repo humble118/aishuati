@@ -21,7 +21,9 @@
     </script>
     <style>
         body {
-            line-height: 1.4rem;
+            font-family: 'PingFang SC', sans-serif;
+            background-color: #f5f7fa;
+            padding: 20px; /* 增加留白 */
         }
 
         .process {
@@ -35,6 +37,8 @@
         .timu {
             width: 96vw;
             margin: 2vw auto;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.1); /* 添加阴影 */
+            border-radius: 12px; /* 圆角增大 */
         }
 
         .option {
@@ -44,8 +48,9 @@
         }
 
         .option div {
-            padding: 0 2vw;
-            border-radius: 0.6vw;
+            padding: 12px 15px;
+            transition: all 0.3s; /* 添加动画 */
+            border-left: 3px solid transparent; /* 左侧指示条 */
         }
 
         .option .active {
@@ -120,6 +125,30 @@
         .ivu-message-notice-content-text {
             display: block !important;
         }
+        
+        /* 新增样式 */
+        .judge-options {
+            display: flex;
+            justify-content: space-around;
+            margin: 15px 0;
+        }
+        
+        .fill-input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .short-answer-input {
+            width: 100%;
+            min-height: 100px;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
     </style>
 </head>
 
@@ -128,26 +157,40 @@
         <p class='process'>第{{page+1}}题，共{{data.length}}题</p>
         <Card class='timu'>
             <p slot="title">
-                <label
-                    class='type' v-if="timu.option">{{timu.option.length?(timu.answer.length===1?'单选':'多选'):(timu.answer.length>16?'简答':'填空')}}</label>{{timu.title}}
+                <label class='type'>{{getQuestionType()}}</label>{{timu.title}}
             </p>
-            <!-- <a href="#" slot="extra" @click.prevent="changeLimit">
-                <Icon type="ios-loop-strong"></Icon>
-                Change
-            </a> -->
-            <div class="option">
+            <!-- 选择题选项 -->
+            <div class="option" v-if="isChoiceQuestion()">
                 <div v-for="(i,k) in timu.option" v-key='k' @click='select(k)' :class='daan.indexOf(k)!=-1?"active":""'>
                     {{zidian[k]}}.{{i}}</div>
             </div>
+            
+            <!-- 判断题选项 -->
+            <div class="judge-options" v-if="isJudgeQuestion()">
+                <i-button type="primary" @click="selectJudge(true)" :class="judgeAnswer === true ? 'active' : ''">正确</i-button>
+                <i-button type="error" @click="selectJudge(false)" :class="judgeAnswer === false ? 'active' : ''">错误</i-button>
+            </div>
+            
+            <!-- 填空题输入框 -->
+            <div v-if="isFillQuestion()">
+                <input type="text" class="fill-input" v-model="fillAnswer" placeholder="请输入答案">
+            </div>
+            
+            <!-- 简答题输入框 -->
+            <div v-if="isShortAnswerQuestion()">
+                <textarea class="short-answer-input" v-model="shortAnswer" placeholder="请输入答案"></textarea>
+            </div>
+            
             <div type="success" v-if='answer&&result===1' class='result success'>恭喜回答正确</div>
             <div type="warning" v-if='answer&&result===0' class='result warning'>抱歉回答错误了哦！</div>
-            <div v-if='answer&&result===2' class='result info'>{{(String(timu.answer).length>16?'简答':'填空')}}题暂不支持回答
+            <div v-if='answer&&result===2' class='result info'>{{(String(timu.answer).length>16?'简答':'填空')}}题暂不支持回答</div>
+            <div v-if='answer' class="answer">
+                <Icon type="ios-bulb-outline" /> 
+                    正确答案：{{timu.answer}}
             </div>
-            <div v-if='answer' class="answer">答案：{{timu.answer}}</div>
             <div v-if='answer' class="analysis">解析：{{timu.analysis?timu.analysis:'该答案暂无解析'}}</div>
         </Card>
-        <i-button class="huida" type="primary" :disabled='daan.length===0' @click='huida' size="large" long>确定答案
-        </i-button>
+        <i-button class="huida" type="primary" :disabled='!canSubmit()' @click='huida' size="large" long>提交答案</i-button>
         <i-button class="huida" type="success" v-if='sessionStorage.type == "wrong"' @click='del' size="large" long>
             我已学会，不再显示
         </i-button>
@@ -176,9 +219,90 @@
                 zidian: ['A', 'B', 'C', 'D', 'E'],
                 daan: [],
                 answer: false,
-                result: false
+                result: false,
+                judgeAnswer: null, // 判断题答案
+                fillAnswer: '',    // 填空题答案
+                shortAnswer: ''    // 简答题答案
             },
+            // 新增
+            watch: {
+                page(newVal, oldVal) {
+                    this.transitionName = newVal > oldVal ? 'slide-left' : 'slide-right';
+                }
+            },
+
             methods: {
+                // 获取题目类型
+                getQuestionType() {
+                    if (this.isJudgeQuestion()) return '判断';
+                    if (this.isFillQuestion()) return '填空';
+                    if (this.isShortAnswerQuestion()) return '简答';
+                    if (this.timu.option) {
+                        return this.timu.option.length ? (this.timu.answer.length === 1 ? '单选' : '多选') : '未知';
+                    }
+                    return '未知';
+                },
+                
+                // 判断题目类型
+                isChoiceQuestion() {
+                    return this.timu.option && this.timu.option.length > 0 && !this.isJudgeQuestion();
+                },
+                
+                isJudgeQuestion() {
+                    return this.timu.type === 'judge' || 
+                          (this.timu.option && this.timu.option.length === 2 && 
+                           this.timu.option.includes('正确') && this.timu.option.includes('错误'));
+                },
+                
+                isFillQuestion() {
+                    return this.timu.type === 'fill' || 
+                          (!this.timu.option && this.timu.answer && this.timu.answer.length <= 16);
+                },
+                
+                isShortAnswerQuestion() {
+                    return this.timu.type === 'short_answer' || 
+                          (!this.timu.option && this.timu.answer && this.timu.answer.length > 16);
+                },
+                
+                // 是否可以提交
+                canSubmit() {
+                    if (this.answer) return false;
+                    if (this.isChoiceQuestion()) return this.daan.length > 0;
+                    if (this.isJudgeQuestion()) return this.judgeAnswer !== null;
+                    if (this.isFillQuestion()) return this.fillAnswer.trim() !== '';
+                    if (this.isShortAnswerQuestion()) return this.shortAnswer.trim() !== '';
+                    return false;
+                },
+                
+                // 选择判断题答案
+                selectJudge(answer) {
+                    this.judgeAnswer = answer;
+                },
+
+                 standardizeJudgeAnswer(answer) {
+                    // 统一判断题答案格式
+                    if (answer === 'A' || answer === '正确' || answer === '对') {
+                        return '正确';
+                    }
+                    if (answer === 'B' || answer === '错误' || answer === '错') {
+                        return '错误';
+                    }
+                    return answer; // 其他情况原样返回
+                },
+
+                // 公共的答案规范化方法
+                normalizeAnswer(str) {
+                    if (!str && str !== 0) return '';  // 处理null/undefined
+                    return String(str).trim()
+                        .toLowerCase()
+                        .replace(/\s+/g, ' ')      // 合并多个空格
+                        .replace(/[，。、]/g, ',')  // 中文标点转英文逗号
+                        .replace(/["'”“‘’]/g, '')  // 去除各种引号
+                        .replace(/[【】\[\]]/g, '') // 去除括号
+                        .replace(/[？?]/g, '')     // 去除问号
+                        .replace(/[！!]/g, '');    // 去除感叹号
+                },
+                
                 select(k) {
                     if (this.daan.indexOf(k) != -1) {
                         this.daan.splice(this.daan.findIndex(item => item === k), 1);
@@ -190,20 +314,60 @@
                         this.daan.push(k)
                     }
                 },
+                
                 huida() {
-                    let answer = this.timu.answer.split('')
-                    this.result = 1;
-                    if (this.daan.length != answer.length) {
-                        this.result = 0;
-                    } else {
-                        for (i in this.daan) {
-                            console.log(this.zidian[this.daan[i]])
-                            if (answer.indexOf(this.zidian[this.daan[i]]) == -1) {
-                                this.result = 0;
+                    let userAnswer = '';
+                    let correctAnswer = this.timu.answer;
+                    
+                    // 根据题目类型获取用户答案
+                    if (this.isChoiceQuestion()) {
+                        userAnswer = this.daan.map(k => this.zidian[k]).join('');
+                    } else if (this.isJudgeQuestion()) {
+                        userAnswer = this.judgeAnswer ? '正确' : '错误';
+                    }  else if (this.isFillQuestion()) {
+                        userAnswer = this.fillAnswer;
+                    } else if (this.isShortAnswerQuestion()) {
+                        userAnswer = this.shortAnswer;
+                    }
+                    
+                    // 验证答案
+                    this.result = 0; // 默认错误
+                    
+                    if (this.isChoiceQuestion()) {
+                        let answer = correctAnswer.split('');
+                        this.result = 1;
+                        if (this.daan.length != answer.length) {
+                            this.result = 0;
+                        } else {
+                            for (let i in this.daan) {
+                                if (answer.indexOf(this.zidian[this.daan[i]]) == -1) {
+                                    this.result = 0;
+                                }
                             }
                         }
+                    } else if (this.isJudgeQuestion()) {
+                        // 标准化答案格式
+                        const standardAnswer = this.standardizeJudgeAnswer(this.timu.answer);
+                        const userAnswer = this.judgeAnswer ? '正确' : '错误';
+                        this.result = (userAnswer === standardAnswer) ? 1 : 0;
+                    } else if (this.isFillQuestion()) {
+                        const userAns = this.normalizeAnswer(this.fillAnswer);
+                        const correctAns = this.normalizeAnswer(this.timu.answer);
+                        
+                        if (correctAns.includes('|')) {
+                            const answers = correctAns.split('|').map(a => this.normalizeAnswer(a));
+                            this.result = answers.includes(userAns) ? 1 : 0;
+                        } else {
+                            this.result = userAns === correctAns ? 1 : 0;
+                        }
+                    }else if (this.isShortAnswerQuestion()) {
+                        // 简答题不判断对错
+                        this.result = 3;
                     }
-                    if (this.result) {
+                    // 显示答案
+                    this.answer = true;
+                    // 回答正确自动跳转             
+                    if (this.result === 1) {
                         setTimeout(() => {
                             this.next()
                         }, 800)
@@ -220,6 +384,7 @@
                     }
                     this.answer = true;
                 },
+                
                 // 恢复答题进度
                 recovery(type) {
                     if (localStorage[type + '_' + this.fileId] && Number(localStorage[type + '_' + this.fileId])) {
@@ -234,6 +399,7 @@
                         })
                     }
                 },
+                
                 //删除错题
                 del() {
                     let wrong = JSON.parse(localStorage["wrong_" + this.fileId])
@@ -244,34 +410,40 @@
                     this.$Message.success('删除错题记录成功！');
                     window.location.reload();
                 },
+                
                 next() {
                     if (this.page < this.data.length) {
                         this.page += 1;
                         this.initTimu()
                     }
                 },
+                
                 prev() {
                     if (this.page !== 0) {
                         this.page -= 1;
                         this.initTimu()
                     }
                 },
+                
                 initTimu() { //题目控制
-                    //对之前的记录清空
+                    //重置所有答案状态
                     this.daan = [];
+                    this.judgeAnswer = null;
+                    this.fillAnswer = '';
+                    this.shortAnswer = '';
                     this.answer = false;
+                    
                     //新题目
                     this.timu = this.data[this.page];
-                    //简答题直接显示解析和答案
-                    if (this.timu.option.length == 0) {
-                        this.answer = true;
-                        this.result = 2;
+                    
+                    //简答题和填空题直接显示解析和答案（如果是背题模式）
+                    if (this.isFillQuestion() || this.isShortAnswerQuestion()) {
+                        if (sessionStorage.type == "recite") {
+                            this.answer = true;
+                            this.result = 3; //不显示结果框
+                        }
                     }
-                    //背题模式直接显示解析和答案
-                    if (sessionStorage.type == "recite") {
-                        this.answer = true;
-                        this.result = 3; //不显示结果框
-                    }
+                    
                     // 记录答题题号
                     if (sessionStorage.type === 'order') {
                         localStorage['order_' + this.fileId] = this.page
@@ -280,6 +452,7 @@
                         localStorage['recite_' + this.fileId] = this.page
                     }
                 },
+                
                 //打乱数组顺序
                 randomArray(array) {
                     var m = array.length,
@@ -292,6 +465,7 @@
                     }
                     return array;
                 },
+                
                 //将现有数组中的错题提取出来
                 wrongArray(array) {
                     let wrong = JSON.parse(localStorage["wrong_" + this.fileId])
