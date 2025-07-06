@@ -20,11 +20,7 @@
         })();
     </script>
     <style>
-        body {
-            font-family: 'PingFang SC', sans-serif;
-            background-color: #f5f7fa;
-            padding: 20px; /* 增加留白 */
-        }
+        body { line-height: 1.4rem; }
 
         .process {
             width: 93.6vw;
@@ -37,8 +33,6 @@
         .timu {
             width: 96vw;
             margin: 2vw auto;
-            box-shadow: 0 2px 15px rgba(0,0,0,0.1); /* 添加阴影 */
-            border-radius: 12px; /* 圆角增大 */
         }
 
         .option {
@@ -47,11 +41,7 @@
             letter-spacing: 0.1rem;
         }
 
-        .option div {
-            padding: 12px 15px;
-            transition: all 0.3s; /* 添加动画 */
-            border-left: 3px solid transparent; /* 左侧指示条 */
-        }
+        .option div { padding: 0 2vw; }
 
         .option .active {
             background-color: blanchedalmond;
@@ -184,10 +174,7 @@
             <div type="success" v-if='answer&&result===1' class='result success'>恭喜回答正确</div>
             <div type="warning" v-if='answer&&result===0' class='result warning'>抱歉回答错误了哦！</div>
             <div v-if='answer&&result===2' class='result info'>{{(String(timu.answer).length>16?'简答':'填空')}}题暂不支持回答</div>
-            <div v-if='answer' class="answer">
-                <Icon type="ios-bulb-outline" /> 
-                    正确答案：{{timu.answer}}
-            </div>
+            <div v-if='answer'>答案：{{timu.answer}}</div>
             <div v-if='answer' class="analysis">解析：{{timu.analysis?timu.analysis:'该答案暂无解析'}}</div>
         </Card>
         <i-button class="huida" type="primary" :disabled='!canSubmit()' @click='huida' size="large" long>提交答案</i-button>
@@ -223,12 +210,6 @@
                 judgeAnswer: null, // 判断题答案
                 fillAnswer: '',    // 填空题答案
                 shortAnswer: ''    // 简答题答案
-            },
-            // 新增
-            watch: {
-                page(newVal, oldVal) {
-                    this.transitionName = newVal > oldVal ? 'slide-left' : 'slide-right';
-                }
             },
 
             methods: {
